@@ -19,7 +19,7 @@ them on a dedicated screen at the sheet.
     |   BACK LINE        HOG LINE         HOG LINE    BACK LINE  |
     |      |                |                |           |       |
     |   [Node 1]         [Node 2]         [Node 3]   [Node 4]   |
-    |   ESP32-CAM        ESP32-CAM        ESP32-CAM   ESP32-CAM  |
+    |   ESP32-S3-CAM        ESP32-S3-CAM        ESP32-S3-CAM   ESP32-S3-CAM  |
     |      |                |                |           |       |
     |      +-------NRF24L01 radio mesh-------+           |       |
     |                       |                            |       |
@@ -28,52 +28,83 @@ them on a dedicated screen at the sheet.
     |                  + NRF24L01                                 |
 ```
 
+### Board Selection: Freenove ESP32-S3-WROOM CAM
+
+We use the **Freenove ESP32-S3-WROOM CAM (N8R8)** instead of the classic
+AI-Thinker ESP32-S3-CAM. Key advantages:
+
+| Feature | AI-Thinker ESP32-S3-CAM | Freenove ESP32-S3-WROOM CAM |
+|---------|----------------------|-----------------------------|
+| Chip | ESP32 (old) | **ESP32-S3** (newer, faster) |
+| Free GPIOs (camera active) | 1 (GPIO 16) | **~10+** |
+| Free GPIOs (no SD card) | ~6 (boot-sensitive) | **~13+** (clean access) |
+| PSRAM | 4MB SPI | **8MB OPI (faster)** |
+| Flash | 4MB | 8MB / 16MB |
+| USB programming | Needs FTDI adapter | **Built-in USB-C (CH343)** |
+| Price | ~$5 | ~$8-10 |
+| Camera | OV2640 | OV2640 |
+
+The ESP32-S3's OPI PSRAM has much higher bandwidth than old SPI PSRAM —
+important when moving camera frame buffers. The S3 also has a faster core
+and better camera driver support.
+
+**Alternative (compact option):** Seeed Studio XIAO ESP32S3 Sense (~$13-15).
+Thumb-sized (21x17.5mm) with 11 GPIOs on headers, 8MB PSRAM, detachable
+OV2640 camera board. Full SPI available alongside camera. Great if you want
+a tiny ice-level profile.
+
 ### Hardware Per Node
 
 **Camera Node (x4):**
 | Component | Est. Cost | Notes |
 |-----------|-----------|-------|
-| ESP32-CAM (AI-Thinker) | ~$5 | OV2640 sensor, built-in |
+| Freenove ESP32-S3-WROOM CAM (N8R8) | ~$10 | OV2640 sensor, USB-C, 8MB PSRAM |
 | NRF24L01+PA+LNA | ~$3 | Long-range version w/ antenna, need range for ~30m sheet |
-| 3.3V regulator + capacitor | ~$1 | Clean power for NRF24L01 (10uF + 100nF on Vcc) |
+| 10uF + 100nF capacitors | ~$0.50 | Clean power for NRF24L01 on Vcc |
 | USB power supply + cable | ~$5 | Wall-powered at rink |
 | 3D-printed enclosure | ~$2 | Ice-level mount with camera window |
-| **Subtotal** | **~$16** | |
+| **Subtotal** | **~$20.50** | |
 
 **Display Node (x1):**
 | Component | Est. Cost | Notes |
 |-----------|-----------|-------|
-| ESP32 DevKit | ~$5 | Any ESP32 dev board |
+| ESP32-S3 DevKit (any) | ~$8 | Matches camera node chip family |
 | NRF24L01+PA+LNA | ~$3 | Match camera nodes |
 | 2.42" OLED (SSD1309) or 3.5" ILI9488 LCD | ~$8-15 | Visible from ~3m away |
 | Buttons (start/reset/mode) | ~$2 | User controls |
 | Enclosure + mount | ~$5 | |
-| **Subtotal** | **~$25-30** | |
+| **Subtotal** | **~$28-35** | |
 
-**Total system: ~$90-95**
+**Total system: ~$110-115**
 
-### NRF24L01 Wiring on ESP32-CAM (Using SD Card Pins)
+### NRF24L01 Wiring on Freenove ESP32-S3-WROOM CAM
 
-Since we don't need the SD card, those GPIOs are free:
+The ESP32-S3 board has plenty of free GPIOs when the SD card is not used.
+The SD card slot uses GPIO 38-40 (SDMMC 1-bit mode), freeing them for
+NRF24L01. Additionally, many other GPIOs are exposed on the pin headers
+and not used by the camera.
 
-| NRF24L01 Pin | ESP32-CAM GPIO | Notes |
-|-------------|----------------|-------|
+Use hardware **SPI2** (the ESP32-S3's general-purpose SPI bus) on any
+available pins — no need for software SPI hacks:
+
+| NRF24L01 Pin | ESP32-S3 GPIO | Notes |
+|-------------|---------------|-------|
 | VCC | 3.3V | Add 10uF + 100nF caps! |
 | GND | GND | |
-| SCK | GPIO 14 | SD_CLK repurposed |
-| MISO | GPIO 2 | SD_DATA0 repurposed |
-| MOSI | GPIO 15 | SD_CMD repurposed |
-| CSN | GPIO 13 | SD_DATA3 repurposed |
-| CE | GPIO 12 | SD_DATA2 — **caution: boot-strapping pin** — add 10k pulldown |
+| SCK | GPIO 39 | SD_CLK — free when SD unused |
+| MISO | GPIO 40 | SD_DATA0 — free when SD unused |
+| MOSI | GPIO 38 | SD_CMD — free when SD unused |
+| CSN | GPIO 21 | General-purpose GPIO |
+| CE | GPIO 47 | General-purpose GPIO |
 | IRQ | — | Not connected (polled instead) |
 
-**Important:** GPIO 12 must be LOW at boot or the ESP32 won't start (it
-controls flash voltage). Add a 10k pulldown resistor. The NRF24L01 CE pin
-is an output from the ESP32, so it won't conflict after boot. Alternatively,
-use GPIO 4 for CE (flash LED pin — just don't use the flash).
+**Note:** Verify exact free GPIOs against the Freenove pinout diagram for
+your specific board revision. The camera-dedicated pins (underlined in the
+Freenove docs) must be avoided. GPIOs 35-37 are unavailable when OPI PSRAM
+is active (which it is on the N8R8). GPIO 19/20 are used for USB.
 
-Use **software SPI** via the RF24 library's `SoftSPI` or configure HSPI
-manually to avoid conflicts with the camera's I2S/DMA on the VSPI bus.
+No boot-strapping pin workarounds needed — a major improvement over the
+AI-Thinker board.
 
 ---
 
@@ -296,7 +327,7 @@ After COMPLETE, auto-reset after 10 seconds or manual reset via button.
 ### Phase 1: Single Camera Proof of Concept
 **Goal:** Prove rock detection works at ice level.
 
-1. Flash one ESP32-CAM with basic camera capture code
+1. Flash one ESP32-S3-CAM with basic camera capture code
 2. Mount at ice level (tape to boards, aim across a line)
 3. Capture frames, analyze ROI brightness as rock passes
 4. Log timestamps to Serial, verify detection reliability
@@ -306,7 +337,7 @@ After COMPLETE, auto-reset after 10 seconds or manual reset via button.
 ### Phase 2: Two-Node Communication
 **Goal:** Prove NRF24L01 communication and time sync.
 
-1. Add NRF24L01 to one ESP32-CAM (using SD card pins)
+1. Add NRF24L01 to one ESP32-S3-CAM (using free GPIO pins)
 2. Build display node (ESP32 + NRF24L01 + OLED)
 3. Implement time sync protocol
 4. Camera sends detection events, display shows "rock detected"
@@ -347,10 +378,12 @@ After COMPLETE, auto-reset after 10 seconds or manual reset via button.
 ## Key Technical Risks & Mitigations
 
 ### 1. Camera FPS Too Low
-**Risk:** ESP32-CAM can't sustain 25+ FPS at QQVGA.
-**Mitigation:** Even at 15 FPS (67ms frames), interpolation across 3-4 frames
-should yield ~20ms accuracy. Acceptable for POC. If needed, try overclocking
-XCLK to 24MHz or using grayscale pixel format instead of JPEG.
+**Risk:** ESP32-S3-CAM can't sustain 25+ FPS at QQVGA.
+**Mitigation:** The ESP32-S3's OPI PSRAM is significantly faster than the old
+ESP32's SPI PSRAM, so frame throughput should be better. Even at 15 FPS
+(67ms frames), interpolation across 3-4 frames should yield ~20ms accuracy.
+Acceptable for POC. If needed, try overclocking XCLK to 24MHz or using
+grayscale pixel format instead of JPEG.
 
 ### 2. False Triggers (Brooms, Feet, Shadows)
 **Risk:** Non-rock objects trigger detection.
@@ -390,24 +423,23 @@ XCLK to 24MHz or using grayscale pixel format instead of JPEG.
 
 | Qty | Item | Unit Cost | Total |
 |-----|------|-----------|-------|
-| 4 | ESP32-CAM (AI-Thinker) | $5 | $20 |
+| 4 | Freenove ESP32-S3-WROOM CAM (N8R8) | $10 | $40 |
 | 5 | NRF24L01+PA+LNA w/ antenna | $3 | $15 |
-| 1 | ESP32 DevKit V1 | $5 | $5 |
+| 1 | ESP32-S3 DevKit | $8 | $8 |
 | 1 | 2.42" OLED SSD1309 (or 3.5" LCD) | $10 | $10 |
 | 5 | 10uF + 100nF capacitors (for NRF24L01) | $0.50 | $2.50 |
-| 4 | 10k resistors (GPIO 12 pulldown) | $0.10 | $0.40 |
 | 5 | USB-C power supplies (5V 1A) | $5 | $25 |
 | 3 | Tactile buttons | $0.50 | $1.50 |
 | 5 | 3D printed enclosures | $3 | $15 |
 | — | Hookup wire, headers, breadboards | — | $10 |
-| | | **Total** | **~$105** |
+| | | **Total** | **~$127** |
 
 ---
 
 ## Development Environment
 
 - **IDE:** PlatformIO (VS Code extension)
-- **Framework:** Arduino (for ESP32-CAM camera driver compatibility)
+- **Framework:** Arduino (for ESP32-S3-CAM camera driver compatibility)
 - **Libraries:**
   - `esp32-camera` — camera driver
   - `RF24` — NRF24L01 communication (nRF24/RF24)
