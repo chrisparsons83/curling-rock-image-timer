@@ -136,34 +136,69 @@ looks **across** the line. The field of view covers ~0.5-1m of the line.
 ```
 
 **Algorithm:**
-1. Capture frames at QQVGA (160x120) in JPEG, decode to grayscale or RGB565
+1. Capture frames at QQVGA (160x120) in **native grayscale** (no JPEG
+   encode/decode — direct 1-byte-per-pixel from the OV2640)
 2. Analyze only a **narrow vertical strip** (e.g., columns 60-100, all rows) —
    this is the "virtual tripwire"
-3. Compute average color/brightness in the ROI for each frame
-4. Curling rocks are distinctly colored (red or yellow) against white ice
-5. Detect a significant change in the ROI → rock is crossing the line
-6. **Sub-frame interpolation:** Track the rock's leading edge position across
-   3-4 frames, fit a linear model, extrapolate exact crossing time
+3. Compute average brightness in the ROI for each frame
+4. Rock appears as a dark silhouette against bright ice at ice level
+5. Detect a significant brightness drop in the ROI → rock is crossing the line
+6. **Sub-frame interpolation:** Track brightness across the last 8 frames,
+   find the midpoint of the transition, linearly interpolate between the two
+   frames that bracket it to estimate exact crossing time
 
 ### Expected Performance
 
 | Parameter | Value |
 |-----------|-------|
 | Resolution | QQVGA 160x120 |
-| Format | JPEG (hardware encoder) → partial decode |
+| Format | Native grayscale (1 byte/pixel, no JPEG overhead) |
 | Target FPS | 25-30 |
 | Frame interval | 33-40ms |
 | ROI processing time | <2ms (just averaging ~2400 pixels) |
 | NRF24L01 TX time | ~1ms |
 | **Effective accuracy w/ interpolation** | **~10-15ms** |
 
-### Calibration Mode
+### Calibration & Camera Placement
 
-Each camera node needs a one-time calibration:
-1. Capture "empty ice" baseline (average brightness/color of ROI)
-2. Set threshold for "rock present" (e.g., 30% brightness drop)
-3. Store in ESP32 flash (NVS)
-4. Recalibrate via button press or radio command from display node
+**Placement tolerance:** The camera does NOT need to be precisely aligned
+with the painted line. The software auto-detects the line in the image and
+positions the virtual tripwire accordingly.
+
+| Placement accuracy | Effect on timing (2 m/s draw) |
+|--------------------|-------------------------------|
+| Within 2-3cm       | <15ms — negligible            |
+| Within 5cm         | ~25ms — cancels across nodes  |
+| Within 10cm        | ~50ms — still usable for POC  |
+
+**Key insight:** Placement error is *consistent and directional*. If two
+cameras are offset the same way, the split time between them is still
+correct. Error only compounds when cameras are offset in opposite directions.
+
+**What matters for placement:**
+1. **Height:** Camera lens at ice level (within ~2cm). Too high and you see
+   the top of the rock instead of a clean silhouette.
+2. **Angle:** Aimed roughly perpendicular to the rock's path (across the
+   sheet, not along it).
+3. **Stability:** Must not move during a session.
+
+**Auto-calibration sequence (runs at boot):**
+1. Discard first 20 frames (auto-exposure settling)
+2. Capture 30 frames of empty ice
+3. Build horizontal brightness profile (average brightness per column)
+4. Scan for the painted line: a dark stripe (≥30 brightness dip) in the
+   horizontal profile, 2-12 pixels wide at QQVGA
+5. If found: center the virtual tripwire ROI on the line (±15px margin)
+6. If not found: fall back to center of frame (columns 60-99)
+7. Capture 10 more frames to establish baseline brightness within the ROI
+8. Print the brightness profile to Serial (for debugging/visualization)
+
+**Periodic re-baseline:** Every 10 seconds of no detection, the baseline
+brightness is refreshed (10 frames averaged). This handles gradual lighting
+changes (arena lights cycling, ice resurfacing, etc.).
+
+**Manual recalibration:** Send `c` over Serial (Phase 1) or press a button
+/ send radio command (Phase 2+) to re-run the full calibration sequence.
 
 ---
 
