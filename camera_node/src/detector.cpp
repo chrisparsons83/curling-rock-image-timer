@@ -34,6 +34,12 @@ RoiResult RockDetector::analyze_roi(const camera_fb_t* fb) {
     RoiResult result;
     result.timestamp_us = esp_timer_get_time();
 
+    // Validate frame dimensions before pixel access
+    if (fb->width != FRAME_WIDTH || fb->height != FRAME_HEIGHT) {
+        result.brightness = baseline_;
+        return result;
+    }
+
     // Compute average brightness within the ROI strip
     uint32_t sum = 0;
     uint32_t count = 0;
@@ -167,9 +173,14 @@ DetectionEvent RockDetector::update(const RoiResult& roi) {
 
                     // Confidence based on how sharp the transition was.
                     // A clean, fast drop = high confidence.
-                    int drop = baseline_ - roi.brightness;
-                    event.confidence = (float)drop / (float)(baseline_);
-                    if (event.confidence > 1.0f) event.confidence = 1.0f;
+                    if (baseline_ > 0) {
+                        int drop = (int)baseline_ - (int)roi.brightness;
+                        event.confidence = (float)drop / (float)baseline_;
+                        if (event.confidence < 0.0f) event.confidence = 0.0f;
+                        if (event.confidence > 1.0f) event.confidence = 1.0f;
+                    } else {
+                        event.confidence = 0.0f;
+                    }
                 }
             } else {
                 // False alarm — brightness recovered before confirmation
@@ -191,6 +202,10 @@ DetectionEvent RockDetector::update(const RoiResult& roi) {
                 if (frames_in_state_ >= MIN_FRAMES_CLEAR) {
                     state_ = DetectorState::IDLE;
                     frames_in_state_ = 0;
+                    // Clear history so stale data from this detection
+                    // doesn't corrupt the next interpolation
+                    history_idx_ = 0;
+                    history_count_ = 0;
                 }
             } else {
                 // Rock still partially in view

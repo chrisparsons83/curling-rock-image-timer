@@ -1,3 +1,5 @@
+#include <Arduino.h>
+#include <cstdlib>
 #include "calibration.h"
 #include "camera.h"
 
@@ -214,9 +216,11 @@ uint8_t calibration_refresh_baseline(int roi_x_start, int roi_x_end) {
         camera_fb_t* fb = camera_capture();
         if (!fb) continue;
 
-        sum += avg_brightness_in_roi(fb->buf, fb->width,
-                                      roi_x_start, roi_x_end);
-        count++;
+        if (fb->width == FRAME_WIDTH && fb->height == FRAME_HEIGHT) {
+            sum += avg_brightness_in_roi(fb->buf, fb->width,
+                                          roi_x_start, roi_x_end);
+            count++;
+        }
         esp_camera_fb_return(fb);
     }
 

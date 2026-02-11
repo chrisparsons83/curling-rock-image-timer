@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include "camera.h"
 
 bool camera_init() {
