@@ -29,6 +29,7 @@ bool raw_mode = false;
 
 // Counters for the current one-second window, plus totals since the last clear.
 uint32_t window_frames = 0;
+uint32_t window_bytes = 0;
 uint32_t window_unreliable = 0;
 int64_t window_max_gap_us = 0;
 int64_t window_start_us = 0;
@@ -52,6 +53,7 @@ void configure_lidar() {
 
 void reset_window(int64_t now_us) {
     window_frames = 0;
+    window_bytes = 0;
     window_unreliable = 0;
     window_max_gap_us = 0;
     window_start_us = now_us;
@@ -104,9 +106,9 @@ void end_window(int64_t now_us) {
     const auto& r = parser.reading();
     const double secs = (now_us - window_start_us) / 1e6;
     Serial.printf(
-        "# rate=%.1f Hz  dist=%u cm  amp=%u  temp=%.1f C  max_gap=%.1f ms  unreliable=%lu  "
+        "# bytes=%lu  rate=%.1f Hz  dist=%u cm  amp=%u  temp=%.1f C  max_gap=%.1f ms  unreliable=%lu  "
         "total=%lu  checksum_errors=%lu  since_clear=%.0f s\n",
-        window_frames / secs, r.distance_cm, r.amplitude, r.temp_centi_c / 100.0,
+        static_cast<unsigned long>(window_bytes), window_frames / secs, r.distance_cm, r.amplitude, r.temp_centi_c / 100.0,
         window_max_gap_us / 1000.0, static_cast<unsigned long>(window_unreliable),
         static_cast<unsigned long>(total_frames),
         static_cast<unsigned long>(parser.checksum_errors() - checksum_errors_at_clear),
@@ -136,6 +138,7 @@ void loop() {
 
     while (lidar.available()) {
         const uint8_t byte = static_cast<uint8_t>(lidar.read());
+        ++window_bytes;
         if (parser.feed(byte)) on_frame(parser.reading(), esp_timer_get_time());
     }
 

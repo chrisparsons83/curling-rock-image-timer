@@ -25,9 +25,10 @@ From `firmware/`:
 Each second it prints a line like:
 
 ```
-# rate=250.0 Hz  dist=452 cm  amp=1180  temp=29.0 C  max_gap=4.3 ms  unreliable=0  total=2500  checksum_errors=0  since_clear=10 s
+# bytes=2250  rate=250.0 Hz  dist=452 cm  amp=1180  temp=29.0 C  max_gap=4.3 ms  unreliable=0  total=2500  checksum_errors=0  since_clear=10 s
 ```
 
+- `bytes` is how many bytes arrived from the sensor in the last second, about 2,250 at 250 Hz. If it's 0, nothing is arriving: swap the GPIO17 and GPIO18 wires, then check the sensor's power and that pin 5 isn't grounded. If bytes arrive but `rate` stays at 0, the baud rate or wiring is garbling them.
 - `rate` should sit at 250. `max_gap` should stay near 4 ms; much larger values mean frames are being dropped or delayed.
 - `unreliable` counts readings with signal strength below 100 or saturated, where the sensor itself says the distance can't be trusted.
 - Type `c` and press Enter to clear the counters, and `r` to switch to raw CSV of every frame (`t_us,distance_cm,amplitude,temp_c`). Raw output can be saved with `pio device monitor > run.csv` for analysis.
