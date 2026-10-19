@@ -24,5 +24,5 @@ jobs:
         run: pip install platformio
       - name: Native unit tests
         run: pio test -e native
-      - name: Build ESP32-C3 and ESP32-S3 firmware
-        run: pio run -e esp32c3 -e esp32s3
+      - name: Build ESP32 firmware
+        run: pio run -e esp32c3 -e esp32s3 -e esp32s3_usb

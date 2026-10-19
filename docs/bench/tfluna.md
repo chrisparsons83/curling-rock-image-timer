@@ -17,11 +17,10 @@ Grounding pin 5 switches the sensor to I2C, which this firmware doesn't use.
 
 ## Running it
 
-Plug the S3 in by its UART/COM USB port, then from `firmware/`:
+From `firmware/`:
 
-```sh
-pio run -e esp32s3 -t upload -t monitor
-```
+- S3 board with two USB ports: plug into the one marked UART or COM and run `pio run -e esp32s3 -t upload -t monitor`.
+- S3 board with one USB port: run `pio run -e esp32s3_usb -t upload -t monitor`. If the upload can't find the board, hold BOOT, tap RESET, release BOOT and try again.
 
 Each second it prints a line like:
 

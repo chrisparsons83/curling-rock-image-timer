@@ -16,7 +16,8 @@ Install [PlatformIO](https://platformio.org/install/cli), then from `firmware/`:
 
 ```sh
 pio test -e native     # host unit tests
-pio run -e esp32s3     # hog-line units (ESP32-S3)
+pio run -e esp32s3     # hog-line units (ESP32-S3 with two USB ports)
+pio run -e esp32s3_usb # ESP32-S3 boards with a single USB port
 pio run -e esp32c3     # back-line unit (ESP32-C3 Super Mini)
 pio run -e esp32s3 -t upload -t monitor   # flash a board and watch its serial output
 ```
