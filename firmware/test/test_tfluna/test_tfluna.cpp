@@ -102,6 +102,24 @@ void test_save_settings_command() {
     TEST_ASSERT_EQUAL_UINT8_ARRAY(expected, out, 4);
 }
 
+void test_get_version_command() {
+    uint8_t out[4];
+    TEST_ASSERT_EQUAL_size_t(4, build_get_version(out, sizeof(out)));
+    const uint8_t expected[] = {0x5A, 0x04, 0x01, 0x5F};
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(expected, out, 4);
+}
+
+void test_output_enable_commands() {
+    uint8_t out[5];
+    TEST_ASSERT_EQUAL_size_t(5, build_set_output_enabled(true, out, sizeof(out)));
+    const uint8_t on[] = {0x5A, 0x05, 0x07, 0x01, 0x67};
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(on, out, 5);
+    TEST_ASSERT_EQUAL_size_t(5, build_set_output_enabled(false, out, sizeof(out)));
+    const uint8_t off[] = {0x5A, 0x05, 0x07, 0x00, 0x66};
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(off, out, 5);
+    TEST_ASSERT_EQUAL_size_t(0, build_set_output_enabled(true, out, 4));
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_parses_frame);
@@ -112,5 +130,7 @@ int main() {
     RUN_TEST(test_set_frame_rate_command);
     RUN_TEST(test_set_frame_rate_rejects_bad_input);
     RUN_TEST(test_save_settings_command);
+    RUN_TEST(test_get_version_command);
+    RUN_TEST(test_output_enable_commands);
     return UNITY_END();
 }

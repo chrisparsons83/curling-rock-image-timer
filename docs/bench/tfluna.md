@@ -31,7 +31,16 @@ Each second it prints a line like:
 - `bytes` is how many bytes arrived from the sensor in the last second, about 2,250 at 250 Hz. If it's 0, nothing is arriving: swap the GPIO17 and GPIO18 wires, then check the sensor's power and that pin 5 isn't grounded. If bytes arrive but `rate` stays at 0, the baud rate or wiring is garbling them.
 - `rate` should sit at 250. `max_gap` should stay near 4 ms; much larger values mean frames are being dropped or delayed.
 - `unreliable` counts readings with signal strength below 100 or saturated, where the sensor itself says the distance can't be trusted.
-- Type `c` and press Enter to clear the counters, and `r` to switch to raw CSV of every frame (`t_us,distance_cm,amplitude,temp_c`). Raw output can be saved with `pio device monitor > run.csv` for analysis.
+- Type `c` and press Enter to clear the counters, `x` to toggle a hex dump of every received byte, `t` to send a test command, and `r` to switch to raw CSV of every frame (`t_us,distance_cm,amplitude,temp_c`). Raw output can be saved with `pio device monitor > run.csv` for analysis.
+
+## If bytes= stays at 0
+
+Two tests, typing the key into the serial monitor and pressing Enter:
+
+1. **Board check (loopback):** unplug the LiDAR wires from 17 and 18 and put one jumper wire straight from GPIO17 to GPIO18. Press `t`. The next line should show `bytes=4`. If it does, the board's UART and pins work, and the fault is on the sensor side. If it stays at 0, the pins or the firmware's pin choice are wrong for this board.
+2. **Sensor check:** reconnect the LiDAR and press `t`. A sensor that's powered and wired correctly answers with 7 bytes even if its continuous output was switched off. Press `x` to see the raw bytes in hex; a reply starts `5A 07 01`, and normal data frames start `59 59`.
+
+If the board check passes but the sensor never answers, measure about 5 V between pin 1 (red) and pin 4 (black) at the sensor's connector, and check that the connector is fully clicked into the sensor.
 
 ## What to check
 
