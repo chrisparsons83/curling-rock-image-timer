@@ -2,7 +2,9 @@
 //
 // Every second it prints a summary line (frame rate, latest reading, worst
 // gap between frames, error counts). Send 'r' over the serial monitor to
-// toggle raw CSV output of every frame, or 'c' to clear the counters.
+// toggle raw CSV output of every frame, 'c' to clear the counters, 'x' to
+// toggle a hex dump of every byte received, or 't' to send a test command
+// (see docs/bench/tfluna.md for using 't' to tell wiring faults apart).
 
 #include <Arduino.h>
 #include <esp_timer.h>
@@ -26,6 +28,7 @@ HardwareSerial& lidar = Serial1;
 curling::tfluna::FrameParser parser;
 
 bool raw_mode = false;
+bool hex_mode = false;
 
 // Counters for the current one-second window, plus totals since the last clear.
 uint32_t window_frames = 0;
@@ -45,10 +48,19 @@ void send_command(const uint8_t* cmd, size_t len) {
 void configure_lidar() {
     uint8_t cmd[8];
     // Set on every boot rather than saved to the sensor's flash, so a fresh
-    // sensor works without a separate setup step.
+    // sensor works without a separate setup step. The command replies are
+    // left in the stream; the parser skips them but they show up in bytes=.
+    send_command(cmd, curling::tfluna::build_set_output_enabled(true, cmd, sizeof(cmd)));
+    delay(20);
     send_command(cmd, curling::tfluna::build_set_frame_rate(kFrameRateHz, cmd, sizeof(cmd)));
-    delay(50);
-    while (lidar.available()) lidar.read();  // drop the command replies
+}
+
+// Sends a version request. A connected sensor answers with 7 bytes; with
+// GPIO17 jumpered straight to GPIO18 the board hears its own 4 bytes.
+void send_test_command() {
+    uint8_t cmd[4];
+    send_command(cmd, curling::tfluna::build_get_version(cmd, sizeof(cmd)));
+    Serial.println("# sent test command 5A 04 01 5F");
 }
 
 void reset_window(int64_t now_us) {
@@ -73,6 +85,12 @@ void handle_console() {
             case 'r':
                 raw_mode = !raw_mode;
                 if (raw_mode) Serial.println("t_us,distance_cm,amplitude,temp_c");
+                break;
+            case 'x':
+                hex_mode = !hex_mode;
+                break;
+            case 't':
+                send_test_command();
                 break;
             case 'c':
                 clear_counters(esp_timer_get_time());
@@ -129,7 +147,7 @@ void setup() {
     delay(500);
     configure_lidar();
     clear_counters(esp_timer_get_time());
-    Serial.printf("# TF-Luna bench: RX=GPIO%d TX=GPIO%d, %u Hz. 'r' toggles raw CSV, 'c' clears counters.\n",
+    Serial.printf("# TF-Luna bench: RX=GPIO%d TX=GPIO%d, %u Hz. Keys: r raw CSV, x hex dump, t test, c clear.\n",
                   kLidarRxPin, kLidarTxPin, kFrameRateHz);
 }
 
@@ -139,6 +157,7 @@ void loop() {
     while (lidar.available()) {
         const uint8_t byte = static_cast<uint8_t>(lidar.read());
         ++window_bytes;
+        if (hex_mode) Serial.printf("%02X ", byte);
         if (parser.feed(byte)) on_frame(parser.reading(), esp_timer_get_time());
     }
 

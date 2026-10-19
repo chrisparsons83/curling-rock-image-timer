@@ -52,6 +52,13 @@ private:
 // valid rates include 1, 10, 100, 125, 250. 0 switches to trigger mode.
 size_t build_set_frame_rate(uint16_t hz, uint8_t* out, size_t out_len);
 
+// Asks the sensor for its firmware version; it replies with a 7-byte frame
+// (5A 07 01 ...) even when data output is turned off.
+size_t build_get_version(uint8_t* out, size_t out_len);
+
+// Turns the sensor's continuous data output on or off.
+size_t build_set_output_enabled(bool enabled, uint8_t* out, size_t out_len);
+
 // Stores the current settings in the sensor's flash.
 size_t build_save_settings(uint8_t* out, size_t out_len);
 

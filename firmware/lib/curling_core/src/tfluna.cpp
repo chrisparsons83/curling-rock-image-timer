@@ -7,7 +7,9 @@ namespace {
 
 constexpr uint8_t kFrameHeader = 0x59;
 constexpr uint8_t kCommandHeader = 0x5A;
+constexpr uint8_t kIdVersion = 0x01;
 constexpr uint8_t kIdFrameRate = 0x03;
+constexpr uint8_t kIdOutputEnable = 0x07;
 constexpr uint8_t kIdSaveSettings = 0x11;
 
 uint8_t checksum(const uint8_t* bytes, size_t n) {
@@ -50,6 +52,25 @@ size_t build_set_frame_rate(uint16_t hz, uint8_t* out, size_t out_len) {
     out[4] = static_cast<uint8_t>(hz >> 8);
     out[5] = checksum(out, 5);
     return 6;
+}
+
+size_t build_get_version(uint8_t* out, size_t out_len) {
+    if (out_len < 4) return 0;
+    out[0] = kCommandHeader;
+    out[1] = 4;
+    out[2] = kIdVersion;
+    out[3] = checksum(out, 3);
+    return 4;
+}
+
+size_t build_set_output_enabled(bool enabled, uint8_t* out, size_t out_len) {
+    if (out_len < 5) return 0;
+    out[0] = kCommandHeader;
+    out[1] = 5;
+    out[2] = kIdOutputEnable;
+    out[3] = enabled ? 1 : 0;
+    out[4] = checksum(out, 4);
+    return 5;
 }
 
 size_t build_save_settings(uint8_t* out, size_t out_len) {
