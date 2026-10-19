@@ -29,7 +29,8 @@ Each second it prints a line like:
 ```
 
 - `bytes` is how many bytes arrived from the sensor in the last second, about 2,250 at 250 Hz. If it's 0, nothing is arriving: swap the GPIO17 and GPIO18 wires, then check the sensor's power and that pin 5 isn't grounded. If bytes arrive but `rate` stays at 0, the baud rate or wiring is garbling them.
-- `rate` should sit at 250. `max_gap` should stay near 4 ms; much larger values mean frames are being dropped or delayed.
+- `rate` should be steady, at or a little under 250. The TF-Luna's own clock can run a few percent slow, and one tested sensor sent 242 frames a second. `bytes` should be exactly 9 × `rate`, which shows no frames are lost.
+- `max_gap` should stay near one frame period (about 4 ms). Much larger values mean frames are being dropped or timestamped late.
 - `unreliable` counts readings with signal strength below 100 or saturated, where the sensor itself says the distance can't be trusted.
 - Type `c` and press Enter to clear the counters, `x` to toggle a hex dump of every received byte, `t` to send a test command, and `r` to switch to raw CSV of every frame (`t_us,distance_cm,amplitude,temp_c`). Raw output can be saved with `pio device monitor > run.csv` for analysis.
 
@@ -44,7 +45,7 @@ If the board check passes but the sensor never answers, measure about 5 V betwee
 
 ## What to check
 
-1. **10-minute run (the #14 pass condition):** point the sensor at a wall 1–5 m away, type `c`, wait 10 minutes, and confirm `rate` stayed at 250, `total` is about 150,000, and `checksum_errors` is 0.
+1. **10-minute run (the #14 pass condition):** point the sensor at a wall 1–5 m away, type `c`, wait 10 minutes, and confirm `rate` stayed steady, `total` is about 600 × rate (about 145,000–150,000), `checksum_errors` is 0, and `max_gap` stayed under about 6 ms.
 2. **Readings make sense:** hold a hand or a box in the beam at a few distances and check `dist` against a tape measure.
 3. **Delay between measuring and arriving:** the datasheet doesn't give one. Each frame is timestamped as soon as its last byte arrives, so any delay inside the sensor is the same on every frame. A constant delay cancels out of the splits, because both ends of a split carry it. The on-ice test (#18) measures what's left against 240 fps video.
 
