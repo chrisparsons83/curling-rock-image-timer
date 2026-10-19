@@ -137,7 +137,11 @@ void end_window(int64_t now_us) {
 }  // namespace
 
 void setup() {
-    Serial.begin(115200);
+    // Buffer console output so printing never blocks the loop. Without it,
+    // the once-a-second summary line held up reading for ~12 ms, and frames
+    // that arrived meanwhile were timestamped late.
+    Serial.setTxBufferSize(2048);
+    Serial.begin(921600);
     lidar.begin(kLidarBaud, SERIAL_8N1, kLidarRxPin, kLidarTxPin);
     // Hand bytes to the driver as soon as a frame's worth arrives, or after a
     // one-symbol pause, instead of waiting for the FIFO to fill. This keeps
