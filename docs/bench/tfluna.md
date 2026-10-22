@@ -1,4 +1,4 @@
-# Bench test: TF-Luna on an ESP32-S3 (#14)
+# Bench test: TF-Luna on an ESP32-S3 (#14, #16)
 
 ## Wiring
 
@@ -32,7 +32,26 @@ Each second it prints a line like:
 - `rate` should be steady, at or a little under 250. The TF-Luna's own clock can run a few percent slow, and one tested sensor sent 242 frames a second. `bytes` should be exactly 9 × `rate`, which shows no frames are lost.
 - `max_gap` should stay near one frame period (about 4 ms). Much larger values mean frames are being dropped or timestamped late.
 - `unreliable` counts readings with signal strength below 100 or saturated, where the sensor itself says the distance can't be trusted.
-- Type `c` and press Enter to clear the counters, `x` to toggle a hex dump of every received byte, `t` to send a test command, and `r` to switch to raw CSV of every frame (`t_us,distance_cm,amplitude,temp_c`). Raw output can be saved with `pio device monitor > run.csv` for analysis.
+- Type `c` and press Enter to clear the counters, `b` to relearn the empty-line baseline, `x` to toggle a hex dump of every received byte, `t` to send a test command, and `r` to switch to raw CSV of every frame (`t_us,distance_cm,amplitude,temp_c`). Raw output can be saved with `pio device monitor > run.csv` for analysis.
+
+## Crossings (#16)
+
+For the first second after boot (or after `b`) the firmware learns the empty-line distance, so keep the beam clear. It then prints:
+
+```
+# baseline=147 cm  threshold=132 cm
+```
+
+`baseline` is what the sensor sees with nothing in the way: the far wall, or the ceiling on a bench. Anything nearer than `threshold` (15 cm short of the baseline, and never beyond 450 cm, the sheet width) counts as something on the line. Each object that passes through the beam then prints two lines:
+
+```
+# crossing 3 start t=41.218 s
+# crossing 3 end t=41.402 s  duration=184.0 ms  samples=45  min=98 cm  median=101 cm
+```
+
+The start time is the first reading that saw the object, which is the time a split will use. A single stray reading doesn't count, and a gap of one or two readings inside an object doesn't split it in two. Something left in the beam for 5 seconds ends with `timed out, baseline relearned`, and the firmware treats it as the new empty line.
+
+To test it on the bench, sweep a hand or a box through the beam at a few distances nearer than `threshold` and check that each pass prints exactly one crossing. An object at the baseline distance itself can't be told apart from the empty line. Crossing lines start with `#`, so they don't break raw CSV captures.
 
 ## If bytes= stays at 0
 

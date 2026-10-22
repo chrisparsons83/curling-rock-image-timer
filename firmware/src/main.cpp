@@ -1,14 +1,18 @@
-// Bench firmware for issue #14: stream TF-Luna readings over USB serial.
+// Bench firmware: stream TF-Luna readings over USB serial and report each
+// object crossing the beam (issues #14 and #16).
 //
 // Every second it prints a summary line (frame rate, latest reading, worst
-// gap between frames, error counts). Send 'r' over the serial monitor to
-// toggle raw CSV output of every frame, 'c' to clear the counters, 'x' to
-// toggle a hex dump of every byte received, or 't' to send a test command
-// (see docs/bench/tfluna.md for using 't' to tell wiring faults apart).
+// gap between frames, error counts). Each crossing prints a "# crossing"
+// line when it starts and when it ends. Send 'r' over the serial monitor to
+// toggle raw CSV output of every frame, 'c' to clear the counters, 'b' to
+// relearn the empty-line baseline, 'x' to toggle a hex dump of every byte
+// received, or 't' to send a test command (see docs/bench/tfluna.md for
+// using 't' to tell wiring faults apart).
 
 #include <Arduino.h>
 #include <esp_timer.h>
 
+#include "crossing_detector.h"
 #include "tfluna.h"
 
 namespace {
@@ -26,6 +30,8 @@ constexpr uint16_t kFrameRateHz = 250;
 
 HardwareSerial& lidar = Serial1;
 curling::tfluna::FrameParser parser;
+curling::CrossingDetector detector;
+uint32_t crossing_count = 0;
 
 bool raw_mode = false;
 bool hex_mode = false;
@@ -96,6 +102,10 @@ void handle_console() {
                 clear_counters(esp_timer_get_time());
                 Serial.println("# counters cleared");
                 break;
+            case 'b':
+                detector.recalibrate();
+                Serial.println("# relearning baseline, keep the beam clear");
+                break;
         }
     }
 }
@@ -107,7 +117,25 @@ void on_frame(const curling::tfluna::Reading& r, int64_t t_us) {
     last_frame_us = t_us;
     ++window_frames;
     ++total_frames;
-    if (!curling::tfluna::is_reliable(r)) ++window_unreliable;
+    const bool reliable = curling::tfluna::is_reliable(r);
+    if (!reliable) ++window_unreliable;
+
+    const bool was_calibrated = detector.calibrated();
+    const auto event = detector.feed(t_us, r.distance_cm, reliable);
+    if (!was_calibrated && detector.calibrated()) {
+        Serial.printf("# baseline=%u cm  threshold=%u cm\n", detector.baseline_cm(), detector.threshold_cm());
+    }
+    const auto& c = detector.crossing();
+    if (event == curling::CrossingDetector::Event::kStarted) {
+        ++crossing_count;
+        Serial.printf("# crossing %lu start t=%.3f s\n", static_cast<unsigned long>(crossing_count),
+                      c.start_us / 1e6);
+    } else if (event == curling::CrossingDetector::Event::kEnded) {
+        Serial.printf("# crossing %lu end t=%.3f s  duration=%.1f ms  samples=%lu  min=%u cm  median=%u cm%s\n",
+                      static_cast<unsigned long>(crossing_count), c.end_us / 1e6, (c.end_us - c.start_us) / 1000.0,
+                      static_cast<unsigned long>(c.samples), c.min_cm, c.median_cm,
+                      c.timed_out ? "  timed out, baseline relearned" : "");
+    }
 
     if (raw_mode) {
         Serial.printf("%lld,%u,%u,%.2f\n", static_cast<long long>(t_us), r.distance_cm,
@@ -151,8 +179,9 @@ void setup() {
     delay(500);
     configure_lidar();
     clear_counters(esp_timer_get_time());
-    Serial.printf("# TF-Luna bench: RX=GPIO%d TX=GPIO%d, %u Hz. Keys: r raw CSV, x hex dump, t test, c clear.\n",
+    Serial.printf("# TF-Luna bench: RX=GPIO%d TX=GPIO%d, %u Hz. Keys: r raw CSV, b relearn baseline, x hex dump, t test, c clear.\n",
                   kLidarRxPin, kLidarTxPin, kFrameRateHz);
+    Serial.println("# learning baseline, keep the beam clear");
 }
 
 void loop() {
