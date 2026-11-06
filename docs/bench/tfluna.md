@@ -32,7 +32,7 @@ Each second it prints a line like:
 - `rate` should be steady, at or a little under 250. The TF-Luna's own clock can run a few percent slow, and one tested sensor sent 242 frames a second. `bytes` should be exactly 9 × `rate`, which shows no frames are lost.
 - `max_gap` should stay near one frame period (about 4 ms). Much larger values mean frames are being dropped or timestamped late.
 - `unreliable` counts readings with signal strength below 100 or saturated, where the sensor itself says the distance can't be trusted.
-- Type `c` and press Enter to clear the counters, `b` to relearn the empty-line baseline, `x` to toggle a hex dump of every received byte, `t` to send a test command, and `r` to switch to raw CSV of every frame (`t_us,distance_cm,amplitude,temp_c`). Raw output can be saved with `pio device monitor > run.csv` for analysis.
+- Type `c` and press Enter to clear the counters, `b` to relearn the empty-line baseline, `m` to drop a numbered `# mark` line in the log (handy for lining passes up with notes), `x` to toggle a hex dump of every received byte, `t` to send a test command, and `r` to switch to raw CSV of every frame (`t_us,distance_cm,amplitude,temp_c`). Raw output can be saved with `pio device monitor > run.csv` for analysis.
 
 ## Crossings (#16)
 
@@ -69,3 +69,13 @@ If the board check passes but the sensor never answers, measure about 5 V betwee
 3. **Delay between measuring and arriving:** the datasheet doesn't give one. Each frame is timestamped as soon as its last byte arrives, so any delay inside the sensor is the same on every frame. A constant delay cancels out of the splits, because both ends of a split carry it. The on-ice test (#18) measures what's left against 240 fps video.
 
 Post the summary lines from the 10-minute run on #14.
+
+## Logging without PlatformIO
+
+Flash the board before you leave. Once flashed it needs no software installed to run, only something that can record a serial port at **921600 baud**.
+
+- **Windows laptop:** install [PuTTY](https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html). Plug the board into the UART/COM port and find its COM number in Device Manager under "Ports (COM & LPT)". In PuTTY, choose Connection type **Serial**, enter the COM port and speed 921600, then under **Session → Logging** pick "All session output" and a file name, and click Open. Type `r` to start raw output. If no COM port appears, Windows needs the board's USB driver: the chip name is printed next to the port (often CH340/CH343 or CP2102).
+- **Mac or Linux laptop:** `python3 -m pip install pyserial`, then `python3 -m serial.tools.miniterm /dev/ttyUSB0 921600 | tee rink.log` (the port may be `/dev/tty.usbserial-*` or `/dev/ttyACM0`).
+- **Android phone:** a USB-C OTG adapter and the free **Serial USB Terminal** app (by Kai Morich). Set the baud rate to 921600 in its settings, connect, and turn on logging from the menu. Send `r` from the text box to start raw output. iPhones can't do this.
+
+Type `m` (or send it from the phone app) just before each pass to add a numbered `# mark` line, then write the same number in your notes.
