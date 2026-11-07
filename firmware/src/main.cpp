@@ -5,7 +5,8 @@
 // gap between frames, error counts). Each crossing prints a "# crossing"
 // line when it starts and when it ends. Send 'r' over the serial monitor to
 // toggle raw CSV output of every frame, 'c' to clear the counters, 'b' to
-// relearn the empty-line baseline, 'x' to toggle a hex dump of every byte
+// relearn the empty-line baseline, 'm' to drop a numbered marker in the log
+// (to line up passes with written notes), 'x' to toggle a hex dump of every byte
 // received, or 't' to send a test command (see docs/bench/tfluna.md for
 // using 't' to tell wiring faults apart).
 
@@ -32,6 +33,7 @@ HardwareSerial& lidar = Serial1;
 curling::tfluna::FrameParser parser;
 curling::CrossingDetector detector;
 uint32_t crossing_count = 0;
+uint32_t mark_count = 0;
 
 bool raw_mode = false;
 bool hex_mode = false;
@@ -101,6 +103,11 @@ void handle_console() {
             case 'c':
                 clear_counters(esp_timer_get_time());
                 Serial.println("# counters cleared");
+                break;
+            case 'm':
+                ++mark_count;
+                Serial.printf("# mark %lu t=%.3f s\n", static_cast<unsigned long>(mark_count),
+                              esp_timer_get_time() / 1e6);
                 break;
             case 'b':
                 detector.recalibrate();
@@ -179,7 +186,7 @@ void setup() {
     delay(500);
     configure_lidar();
     clear_counters(esp_timer_get_time());
-    Serial.printf("# TF-Luna bench: RX=GPIO%d TX=GPIO%d, %u Hz. Keys: r raw CSV, b relearn baseline, x hex dump, t test, c clear.\n",
+    Serial.printf("# TF-Luna bench: RX=GPIO%d TX=GPIO%d, %u Hz. Keys: r raw CSV, b relearn baseline, m mark, x hex dump, t test, c clear.\n",
                   kLidarRxPin, kLidarTxPin, kFrameRateHz);
     Serial.println("# learning baseline, keep the beam clear");
 }
